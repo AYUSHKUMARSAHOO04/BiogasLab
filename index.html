@@ -1,0 +1,1007 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BiogasLab — Anaerobic Digestion Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0f07;
+  --surface: #0f160b;
+  --surface2: #141c0f;
+  --surface3: #1a2414;
+  --border: #2a3820;
+  --border2: #3a4f2a;
+  --lime: #a8e63d;
+  --lime2: #c5f060;
+  --green: #4caf7d;
+  --teal: #2dd4bf;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --blue: #60a5fa;
+  --text: #dff0c8;
+  --muted: #6a8050;
+  --faint: #3a4f2a;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Organic blob background */
+body::before {
+  content: '';
+  position: fixed;
+  top: -200px; left: -200px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(168,230,61,0.04) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: breathe 8s ease-in-out infinite;
+}
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -100px; right: -100px;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(45,212,191,0.03) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: breathe 11s ease-in-out infinite reverse;
+}
+@keyframes breathe {
+  0%,100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+.wrapper { position: relative; z-index: 1; }
+
+/* HEADER */
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(10,15,7,0.92);
+  backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 200;
+  flex-wrap: wrap;
+}
+.logo-bubble {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--lime), var(--teal));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  animation: bubble-pop 3s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes bubble-pop {
+  0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(168,230,61,0.4); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(168,230,61,0); }
+}
+.logo-name {
+  font-family: 'Fraunces', serif;
+  font-size: 1.3rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--lime2);
+}
+.logo-name span { color: var(--teal); }
+.header-tag {
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-left: auto;
+  background: var(--surface2);
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+
+/* STATUS TICKER */
+.status-bar {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 2rem;
+  display: flex; gap: 2rem; align-items: center;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+.status-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.65rem; color: var(--muted); white-space: nowrap;
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--lime);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+.status-val { color: var(--lime2); font-weight: 500; }
+
+/* LAYOUT */
+.main {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media(max-width:1100px){ .main { grid-template-columns: 1fr; } }
+@media(max-width:600px){ .main { padding: 1rem; gap: 1rem; } }
+
+/* CARDS */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.card-head {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 0.8rem 1.2rem;
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.card-head h2 {
+  font-family: 'Fraunces', serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.chip {
+  font-size: 0.58rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+  margin-left: auto;
+}
+.chip-lime { background: rgba(168,230,61,0.1); color: var(--lime2); border: 1px solid rgba(168,230,61,0.25); }
+.chip-teal { background: rgba(45,212,191,0.1); color: var(--teal); border: 1px solid rgba(45,212,191,0.25); }
+.chip-amber { background: rgba(245,158,11,0.1); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+.chip-blue { background: rgba(96,165,250,0.1); color: var(--blue); border: 1px solid rgba(96,165,250,0.25); }
+.chip-green { background: rgba(76,175,125,0.1); color: var(--green); border: 1px solid rgba(76,175,125,0.25); }
+
+.card-body { padding: 1.2rem; }
+
+/* INPUTS */
+.input-group { margin-bottom: 1.3rem; }
+.group-label {
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.7rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.group-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.field { margin-bottom: 0.7rem; }
+.field-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.28rem;
+}
+.field-name { font-size: 0.73rem; color: var(--text); }
+.field-unit { font-size: 0.6rem; color: var(--muted); }
+.field-val { font-size: 0.68rem; color: var(--lime2); min-width: 60px; text-align: right; }
+
+input[type="range"] {
+  -webkit-appearance: none; width: 100%;
+  height: 3px; background: var(--border2);
+  border-radius: 3px; outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--lime2);
+  box-shadow: 0 0 8px rgba(168,230,61,0.6);
+  transition: transform 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.4); }
+input[type="range"].teal-thumb::-webkit-slider-thumb { background: var(--teal); box-shadow: 0 0 8px rgba(45,212,191,0.5); }
+input[type="range"].amber-thumb::-webkit-slider-thumb { background: var(--amber); box-shadow: 0 0 8px rgba(245,158,11,0.5); }
+input[type="range"].blue-thumb::-webkit-slider-thumb { background: var(--blue); box-shadow: 0 0 8px rgba(96,165,250,0.5); }
+
+/* KINETIC PARAMS */
+.kinetics-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0.5rem; margin-bottom: 1rem;
+}
+.kin-item {
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
+.kin-name { font-size: 0.58rem; color: var(--muted); margin-bottom: 0.2rem; }
+.kin-val { font-size: 0.8rem; color: var(--lime2); font-weight: 500; }
+.kin-input {
+  width: 100%; background: transparent;
+  border: none; outline: none;
+  color: var(--lime2); font-family: 'DM Mono', monospace;
+  font-size: 0.8rem; font-weight: 500;
+}
+
+/* RUN BTN */
+.run-wrap { margin-top: 1rem; }
+.run-btn {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  background: linear-gradient(135deg, var(--lime), var(--teal));
+  color: var(--bg);
+  font-family: 'Fraunces', serif;
+  font-weight: 700;
+  font-size: 1rem;
+  border: none; border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  position: relative; overflow: hidden;
+  transition: all 0.2s;
+}
+.run-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(168,230,61,0.3); }
+.run-btn:active { transform: translateY(0); }
+.run-btn .btn-inner { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+
+/* RIGHT COL */
+.right { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* STEPS GRID */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.8rem;
+  padding: 1.2rem;
+}
+.step {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.step:hover { transform: translateY(-2px); border-color: var(--border2); }
+.step::before {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--lime), var(--teal));
+  opacity: 0.6;
+}
+.step.amber::before { background: linear-gradient(90deg, var(--amber), var(--red)); }
+.step.blue::before { background: linear-gradient(90deg, var(--blue), var(--teal)); }
+.step.green::before { background: linear-gradient(90deg, var(--green), var(--lime)); }
+
+.step-n { font-size: 0.56rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.3rem; }
+.step-title {
+  font-family: 'Fraunces', serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.01em;
+}
+.step-formula {
+  background: rgba(168,230,61,0.05);
+  border: 1px solid rgba(168,230,61,0.1);
+  border-radius: 5px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.62rem;
+  color: var(--lime2);
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.step-formula.amber { background: rgba(245,158,11,0.05); border-color: rgba(245,158,11,0.1); color: var(--amber); }
+.step-formula.teal { background: rgba(45,212,191,0.05); border-color: rgba(45,212,191,0.1); color: var(--teal); }
+.step-formula.blue { background: rgba(96,165,250,0.05); border-color: rgba(96,165,250,0.1); color: var(--blue); }
+.step-formula.green { background: rgba(76,175,125,0.05); border-color: rgba(76,175,125,0.1); color: var(--green); }
+.step-result { font-size: 0.7rem; line-height: 1.7; }
+.step-result .lbl { color: var(--muted); }
+.step-result .v-lime { color: var(--lime2); font-weight: 600; }
+.step-result .v-teal { color: var(--teal); font-weight: 600; }
+.step-result .v-amber { color: var(--amber); font-weight: 600; }
+.step-result .v-blue { color: var(--blue); font-weight: 600; }
+.step-result .v-green { color: var(--green); font-weight: 600; }
+.step-result .v-red { color: var(--red); font-weight: 600; }
+
+/* KPIs */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.8rem;
+  padding: 1.2rem;
+}
+.kpi {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 0.9rem;
+  text-align: center;
+  position: relative;
+  transition: all 0.25s;
+  overflow: hidden;
+}
+.kpi::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0;
+  width: 100%; height: 2px;
+  background: var(--lime);
+  transform: scaleX(0);
+  transition: transform 0.3s;
+}
+.kpi:hover::after { transform: scaleX(1); }
+.kpi:hover { border-color: var(--border2); }
+.kpi-lbl { font-size: 0.56rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.5rem; }
+.kpi-num { font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 900; line-height: 1; margin-bottom: 0.2rem; letter-spacing: -0.03em; }
+.kpi-unit { font-size: 0.58rem; color: var(--muted); }
+.k-lime { color: var(--lime2); }
+.k-teal { color: var(--teal); }
+.k-amber { color: var(--amber); }
+.k-blue { color: var(--blue); }
+.k-green { color: var(--green); }
+.k-red { color: var(--red); }
+
+/* BIOGAS BAR */
+.biogas-vis { padding: 0 1.2rem 1.2rem; }
+.bv-label { font-size: 0.6rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem; }
+.biogas-bar { height: 32px; display: flex; border-radius: 8px; overflow: hidden; }
+.bg-seg {
+  height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 0.62rem; font-weight: 500;
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  overflow: hidden; white-space: nowrap;
+}
+.biogas-legend { display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap; }
+.bl-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.6rem; color: var(--muted); }
+.bl-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* CHARTS */
+.charts-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  padding: 1.2rem;
+}
+.chart-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+}
+.chart-box canvas { max-height: 190px; }
+.chart-lbl {
+  font-size: 0.6rem; color: var(--muted);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 0.7rem;
+}
+
+/* PLACEHOLDER */
+.ph {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 2.5rem 1rem; gap: 0.7rem;
+  color: var(--muted); text-align: center;
+}
+.ph-icon { font-size: 2.5rem; opacity: 0.25; }
+.ph-text { font-size: 0.75rem; line-height: 1.5; }
+
+/* ALERT */
+.alert {
+  margin: 0 1.2rem 0.8rem;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.68rem;
+  color: var(--red);
+}
+.warn {
+  background: rgba(245,158,11,0.08);
+  border-color: rgba(245,158,11,0.3);
+  color: var(--amber);
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+@media(max-width:600px){
+  header { padding: 0.8rem 1rem; }
+  .status-bar { padding: 0.4rem 1rem; gap: 1rem; }
+  .kpi-grid { grid-template-columns: repeat(2,1fr); }
+  .charts-wrap { grid-template-columns: 1fr; }
+  .steps-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<!-- HEADER -->
+<header>
+  <div class="logo-bubble">🦠</div>
+  <div>
+    <div class="logo-name">Biogas<span>Lab</span></div>
+  </div>
+  <div class="header-tag">Anaerobic Digestion Simulator</div>
+</header>
+
+<!-- STATUS BAR -->
+<div class="status-bar" id="statusBar">
+  <div class="status-item"><div class="status-dot"></div><span>Status: </span><span class="status-val" id="st-status">Ready</span></div>
+  <div class="status-item">μ_eff: <span class="status-val" id="st-mu">—</span></div>
+  <div class="status-item">S_out: <span class="status-val" id="st-s">—</span></div>
+  <div class="status-item">CH₄: <span class="status-val" id="st-ch4">—</span> m³/day</div>
+  <div class="status-item">η: <span class="status-val" id="st-eta">—</span></div>
+  <div class="status-item">HRT: <span class="status-val" id="st-hrt">—</span> days</div>
+</div>
+
+<div class="main">
+
+<!-- LEFT: INPUTS -->
+<div>
+  <div class="card">
+    <div class="card-head">
+      <h2>⚗️ Input Parameters</h2>
+      <span class="chip chip-lime">Configure</span>
+    </div>
+    <div class="card-body">
+
+      <!-- SUBSTRATE -->
+      <div class="input-group">
+        <div class="group-label">🧪 Substrate Feed</div>
+        <div class="field">
+          <div class="field-top">
+            <span class="field-name">Influent COD (S_in)</span>
+            <span class="field-unit">kg/m³</span>
+            <span class="field-val" id="v_Sin">10.0</span>
+          </div>
+          <input type="range" id="Sin" min="1" max="30" step="0.5" value="10" oninput="sv(this,'v_Sin',1)">
+        </div>
+        <div class="field">
+          <div class="field-top">
+            <span class="field-name">Flow Rate (Q)</span>
+            <span class="field-unit">m³/day</span>
+            <span class="field-val" id="v_Q">50.0</span>
+          </div>
+          <input type="range" id="Q" min="10" max="500" step="10" value="50" oninput="sv(this,'v_Q',1)">
+        </div>
+        <div class="field">
+          <div class="field-top">
+            <span class="field-name">Initial Biomass (X₀)</span>
+            <span class="field-unit">kg/m³</span>
+            <span class="field-val" id="v_X0">2.0</span>
+          </div>
+          <input type="range" id="X0" min="0.5" max="10" step="0.5" value="2" oninput="sv(this,'v_X0',1)">
+        </div>
+      </div>
+
+      <!-- REACTOR -->
+      <div class="input-group">
+        <div class="group-label">⚙️ Reactor</div>
+        <div class="field">
+          <div class="field-top">
+            <span class="field-name">Reactor Volume (V)</span>
+            <span class="field-unit">m³</span>
+            <span class="field-val" id="v_V">500</span>
+          </div>
+          <input type="range" class="teal-thumb" id="V" min="50" max="5000" step="50" value="500" oninput="sv(this,'v_V',0)">
+        </div>
+      </div>
+
+      <!-- OPERATING -->
+      <div class="input-group">
+        <div class="group-label">🌡️ Operating Conditions</div>
+        <div class="field">
+          <div class="field-top">
+            <span class="field-name">Temperature (T)</span>
+            <span class="field-unit">°C</span>
+            <span class="field-val" id="v_T">35</span>
+          </div>
+          <input type="range" class="amber-thumb" id="T" min="15" max="60" step="1" value="35" oninput="sv(this,'v_T',0)">
+        </div>
+        <div class="field">
+          <div class="field-top">
+            <span class="field-name">pH</span>
+            <span class="field-unit">—</span>
+            <span class="field-val" id="v_pH">7.0</span>
+          </div>
+          <input type="range" class="amber-thumb" id="pH" min="5.5" max="8.5" step="0.1" value="7.0" oninput="sv(this,'v_pH',1)">
+        </div>
+        <div class="field">
+          <div class="field-top">
+            <span class="field-name">Ammonia NH₃</span>
+            <span class="field-unit">mg/L</span>
+            <span class="field-val" id="v_NH3">100</span>
+          </div>
+          <input type="range" class="blue-thumb" id="NH3" min="0" max="2000" step="50" value="100" oninput="sv(this,'v_NH3',0)">
+        </div>
+      </div>
+
+      <!-- KINETICS -->
+      <div class="input-group">
+        <div class="group-label">🧠 Kinetic Parameters</div>
+        <div class="kinetics-grid">
+          <div class="kin-item">
+            <div class="kin-name">μ_max (1/day)</div>
+            <input class="kin-input" id="mu_max" type="number" min="0.1" max="1" step="0.01" value="0.40">
+          </div>
+          <div class="kin-item">
+            <div class="kin-name">K_s (kg/m³)</div>
+            <input class="kin-input" id="Ks" type="number" min="0.1" max="5" step="0.1" value="0.50">
+          </div>
+          <div class="kin-item">
+            <div class="kin-name">Y (kg/kg)</div>
+            <input class="kin-input" id="Y" type="number" min="0.01" max="0.5" step="0.01" value="0.10">
+          </div>
+          <div class="kin-item">
+            <div class="kin-name">k_d (1/day)</div>
+            <input class="kin-input" id="kd" type="number" min="0.001" max="0.1" step="0.001" value="0.015">
+          </div>
+          <div class="kin-item">
+            <div class="kin-name">θ (temp coeff)</div>
+            <input class="kin-input" id="theta" type="number" min="1.01" max="1.1" step="0.01" value="1.04">
+          </div>
+          <div class="kin-item">
+            <div class="kin-name">K_I NH₃ (mg/L)</div>
+            <input class="kin-input" id="KI" type="number" min="100" max="5000" step="100" value="1500">
+          </div>
+        </div>
+      </div>
+
+      <div class="run-wrap">
+        <button class="run-btn" onclick="runSim()">
+          <div class="btn-inner">▶ Run Simulation</div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RIGHT: OUTPUTS -->
+<div class="right">
+
+  <!-- STEPS -->
+  <div class="card" id="stepsCard">
+    <div class="card-head">
+      <h2>🧮 Step-by-Step Calculations</h2>
+      <span class="chip chip-amber">11 Steps</span>
+    </div>
+    <div id="stepsBody">
+      <div class="ph"><div class="ph-icon">🦠</div><div class="ph-text">Run simulation to see all 11 calculation steps</div></div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="card">
+    <div class="card-head">
+      <h2>📊 Core Outputs</h2>
+      <span class="chip chip-teal">Results</span>
+    </div>
+    <div id="kpiBody">
+      <div class="ph"><div class="ph-icon">📈</div><div class="ph-text">Outputs appear after simulation</div></div>
+    </div>
+  </div>
+
+  <!-- BIOGAS COMPOSITION -->
+  <div class="card">
+    <div class="card-head">
+      <h2>💨 Biogas Composition</h2>
+      <span class="chip chip-green">Vol %</span>
+    </div>
+    <div id="biogasBody">
+      <div class="ph"><div class="ph-icon">💨</div><div class="ph-text">Biogas composition appears here</div></div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="card">
+    <div class="card-head">
+      <h2>📈 Dynamic Simulation Graphs</h2>
+      <span class="chip chip-blue">5 Charts</span>
+    </div>
+    <div id="chartsBody">
+      <div class="ph"><div class="ph-icon">📉</div><div class="ph-text">Charts generate after first simulation run</div></div>
+    </div>
+  </div>
+
+</div><!-- /right -->
+</div><!-- /main -->
+</div><!-- /wrapper -->
+
+<script>
+// ─── HELPERS ─────────────────────────────────────────────
+function sv(el, id, dec) {
+  document.getElementById(id).textContent = parseFloat(el.value).toFixed(dec);
+}
+function g(id) { return parseFloat(document.getElementById(id).value); }
+function fmt(n, d=2) { return isNaN(n) ? '—' : n.toFixed(d); }
+
+let charts = {};
+
+// ─── SIMULATION ──────────────────────────────────────────
+function runSim() {
+  const Sin    = g('Sin');
+  const Q      = g('Q');
+  const X0     = g('X0');
+  const V      = g('V');
+  const T      = g('T');
+  const pH     = g('pH');
+  const NH3    = g('NH3');
+  const mu_max = g('mu_max');
+  const Ks     = g('Ks');
+  const Y      = g('Y');
+  const kd     = g('kd');
+  const theta  = g('theta');
+  const KI     = g('KI');
+
+  const HRT = V / Q;
+
+  // ── STEP 1: Monod growth rate at S=Sin
+  const mu_monod = mu_max * Sin / (Ks + Sin);
+
+  // ── STEP 2: Temperature correction
+  const mu_T = mu_monod * Math.pow(theta, T - 35);
+
+  // ── STEP 3: pH correction
+  const f_pH = (pH >= 6.8 && pH <= 7.2) ? 1.0 : 0.5;
+
+  // ── STEP 4: Ammonia inhibition
+  const f_NH3 = 1 / (1 + NH3 / KI);
+
+  // ── STEP 5: Effective growth rate
+  const mu_eff_max = mu_T * f_pH * f_NH3;
+
+  // ── STEP 6 & 7 (CSTR Steady State)
+  // At steady state: mu_eff = 1/HRT
+  // Solve for S: S = Ks / (mu_max_eff/mu_eff - 1) where mu_max_eff accounts for corrections
+  const mu_eff_ss = 1 / HRT;
+  const mu_max_corr = mu_max * Math.pow(theta, T-35) * f_pH * f_NH3;
+
+  // Check washout: if 1/HRT > mu_max_corr - kd → washout
+  const washout = mu_eff_ss > (mu_max_corr - kd);
+  let S_ss, X_ss;
+
+  if (washout) {
+    S_ss = Sin;
+    X_ss = 0;
+  } else {
+    const denom = mu_max_corr / (mu_eff_ss + kd) - 1;
+    S_ss = denom <= 0 ? Sin * 0.95 : Math.min(Sin, Ks / denom);
+    S_ss = Math.max(0.001, S_ss);
+    X_ss = Y * (Sin - S_ss) / (1 + kd * HRT);
+    X_ss = Math.max(0, X_ss);
+  }
+
+  // ── STEP 8: Steady state CSTR confirmation
+  const mu_eff_at_ss = mu_max_corr * S_ss / (Ks + S_ss) - kd;
+
+  // ── STEP 9: Methane production
+  const CH4_m3 = 0.35 * (Sin - S_ss) * Q;
+
+  // ── STEP 10: Biogas composition
+  const CH4_pct = 62; // typical
+  const CO2_pct = 36;
+  const other_pct = 2;
+  const biogas_total = CH4_m3 / (CH4_pct / 100);
+  const CO2_m3 = biogas_total * (CO2_pct / 100);
+
+  // ── STEP 11: Efficiency
+  const eta = washout ? 0 : Math.min(99, ((Sin - S_ss) / Sin) * 100);
+  const SGY = washout ? 0 : CH4_m3 / (Q * (Sin - S_ss) + 0.0001); // m³CH4/kg COD
+
+  // STATUS BAR
+  document.getElementById('st-status').textContent = washout ? '⚠ WASHOUT' : '✓ Stable';
+  document.getElementById('st-status').style.color = washout ? 'var(--red)' : 'var(--lime2)';
+  document.getElementById('st-mu').textContent = fmt(mu_max_corr * S_ss/(Ks+S_ss));
+  document.getElementById('st-s').textContent = fmt(S_ss) + ' kg/m³';
+  document.getElementById('st-ch4').textContent = fmt(CH4_m3, 1);
+  document.getElementById('st-eta').textContent = fmt(eta, 1) + '%';
+  document.getElementById('st-hrt').textContent = fmt(HRT, 1);
+
+  // ── RENDER STEPS ─────────────────────────────────────
+  document.getElementById('stepsBody').innerHTML = `
+    ${washout ? '<div class="alert">⚠️ WASHOUT CONDITION: HRT too short or inhibition too high! Biomass cannot establish. Increase HRT or reduce inhibition.</div>' : ''}
+    ${pH < 6.5 ? '<div class="alert warn">⚠️ pH = ' + pH.toFixed(1) + ' — Methanogens severely inhibited! Optimal pH: 6.8–7.2</div>' : ''}
+    ${NH3 > 1000 ? '<div class="alert warn">⚠️ High NH₃ = ' + NH3 + ' mg/L — Ammonia toxicity risk! f_NH3 = ' + fmt(f_NH3, 3) + '</div>' : ''}
+    <div class="steps-grid">
+
+      <div class="step">
+        <div class="step-n">Step 1</div>
+        <div class="step-title">Monod Growth Rate</div>
+        <div class="step-formula">μ = μ_max × S / (Ks + S)</div>
+        <div class="step-result">
+          <span class="lbl">μ_max = </span>${mu_max} d⁻¹<br>
+          <span class="lbl">S_in = </span>${Sin} kg/m³<br>
+          <span class="lbl">Ks = </span>${Ks} kg/m³<br>
+          <span class="lbl">→ μ = </span><span class="v-lime">${fmt(mu_monod, 4)} d⁻¹</span>
+        </div>
+      </div>
+
+      <div class="step amber">
+        <div class="step-n">Step 2</div>
+        <div class="step-title">Temperature Correction</div>
+        <div class="step-formula amber">μ_T = μ × θ^(T−35)</div>
+        <div class="step-result">
+          <span class="lbl">T = </span>${T}°C<br>
+          <span class="lbl">θ = </span>${theta}<br>
+          <span class="lbl">Exponent = </span>${T-35}<br>
+          <span class="lbl">→ μ_T = </span><span class="v-amber">${fmt(mu_T, 4)} d⁻¹</span>
+        </div>
+      </div>
+
+      <div class="step amber">
+        <div class="step-n">Step 3</div>
+        <div class="step-title">pH Correction</div>
+        <div class="step-formula amber">f_pH = 1.0 if 6.8≤pH≤7.2 else 0.5</div>
+        <div class="step-result">
+          <span class="lbl">pH = </span>${pH.toFixed(1)}<br>
+          <span class="lbl">Optimal range: </span>6.8–7.2<br>
+          <span class="lbl">→ f_pH = </span><span class="${f_pH===1?'v-lime':'v-red'}">${f_pH.toFixed(1)}</span>
+          ${f_pH<1?'<br><span class="v-red">⚠ Sub-optimal!</span>':''}
+        </div>
+      </div>
+
+      <div class="step blue">
+        <div class="step-n">Step 4</div>
+        <div class="step-title">Ammonia Inhibition</div>
+        <div class="step-formula blue">f_NH3 = 1 / (1 + NH3/K_I)</div>
+        <div class="step-result">
+          <span class="lbl">NH₃ = </span>${NH3} mg/L<br>
+          <span class="lbl">K_I = </span>${KI} mg/L<br>
+          <span class="lbl">→ f_NH3 = </span><span class="v-blue">${fmt(f_NH3, 4)}</span>
+          ${NH3 > KI ? '<br><span class="v-red">⚠ Strong inhibition!</span>' : ''}
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">Step 5</div>
+        <div class="step-title">Effective Growth Rate</div>
+        <div class="step-formula">μ_eff = μ_T × f_pH × f_NH3</div>
+        <div class="step-result">
+          <span class="lbl">μ_T = </span>${fmt(mu_T,4)}<br>
+          <span class="lbl">f_pH = </span>${f_pH}<br>
+          <span class="lbl">f_NH3 = </span>${fmt(f_NH3,4)}<br>
+          <span class="lbl">→ μ_eff = </span><span class="v-lime">${fmt(mu_max_corr,4)} d⁻¹</span>
+        </div>
+      </div>
+
+      <div class="step green">
+        <div class="step-n">Step 6</div>
+        <div class="step-title">Biomass Growth dX/dt</div>
+        <div class="step-formula green">dX/dt = (μ_eff − k_d) × X</div>
+        <div class="step-result">
+          <span class="lbl">μ_eff = </span>${fmt(mu_max_corr,4)}<br>
+          <span class="lbl">k_d = </span>${kd}<br>
+          <span class="lbl">Net rate = </span><span class="${mu_max_corr-kd>0?'v-green':'v-red'}">${fmt(mu_max_corr-kd,4)} d⁻¹</span><br>
+          <span class="lbl">X_ss = </span><span class="v-green">${fmt(X_ss,3)} kg/m³</span>
+        </div>
+      </div>
+
+      <div class="step green">
+        <div class="step-n">Step 7</div>
+        <div class="step-title">Substrate dS/dt</div>
+        <div class="step-formula green">dS/dt = −(1/Y) × μ_eff × X</div>
+        <div class="step-result">
+          <span class="lbl">Y = </span>${Y}<br>
+          <span class="lbl">Uptake rate = </span>${fmt(mu_max_corr*X_ss/Y,3)} kg/m³/d<br>
+          <span class="lbl">HRT = </span>${fmt(HRT,1)} days<br>
+          <span class="lbl">S_ss = </span><span class="v-green">${fmt(S_ss,3)} kg/m³</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">Step 8</div>
+        <div class="step-title">CSTR Steady State</div>
+        <div class="step-formula">S = Ks / (μ_max_eff/μ_eff − 1)</div>
+        <div class="step-result">
+          <span class="lbl">1/HRT = </span>${fmt(1/HRT,4)} d⁻¹<br>
+          <span class="lbl">μ_max_corr = </span>${fmt(mu_max_corr,4)}<br>
+          <span class="lbl">S_ss = </span><span class="v-lime">${fmt(S_ss,4)} kg/m³</span><br>
+          <span class="${washout?'v-red':'v-lime'}">${washout?'⚠ WASHOUT':'✓ Stable'}</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">Step 9</div>
+        <div class="step-title">Methane Production</div>
+        <div class="step-formula">CH₄ = 0.35 × (S_in − S) × Q</div>
+        <div class="step-result">
+          <span class="lbl">S_in − S_ss = </span>${fmt(Sin-S_ss,3)} kg/m³<br>
+          <span class="lbl">Q = </span>${Q} m³/day<br>
+          <span class="lbl">→ CH₄ = </span><span class="v-teal">${fmt(CH4_m3,2)} m³/day</span>
+        </div>
+      </div>
+
+      <div class="step blue">
+        <div class="step-n">Step 10</div>
+        <div class="step-title">Biogas Composition</div>
+        <div class="step-formula blue">CH₄ 62% | CO₂ 36% | Other 2%</div>
+        <div class="step-result">
+          <span class="lbl">Total biogas = </span>${fmt(biogas_total,2)} m³/day<br>
+          <span class="lbl">CH₄ = </span><span class="v-lime">${fmt(CH4_m3,2)} m³/day</span><br>
+          <span class="lbl">CO₂ = </span><span class="v-blue">${fmt(CO2_m3,2)} m³/day</span>
+        </div>
+      </div>
+
+      <div class="step amber">
+        <div class="step-n">Step 11</div>
+        <div class="step-title">Conversion Efficiency</div>
+        <div class="step-formula amber">η = (S_in − S) / S_in × 100</div>
+        <div class="step-result">
+          <span class="lbl">COD removal = </span><span class="${eta>70?'v-lime':eta>50?'v-amber':'v-red'}">${fmt(eta,1)}%</span><br>
+          <span class="lbl">Gas yield = </span><span class="v-amber">${fmt(SGY,3)} m³/kgCOD</span><br>
+          <span class="lbl">X_ss biomass = </span><span class="v-amber">${fmt(X_ss,3)} kg/m³</span>
+        </div>
+      </div>
+
+    </div>`;
+
+  // ── KPIs ─────────────────────────────────────────────
+  document.getElementById('kpiBody').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lbl">Methane</div><div class="kpi-num k-lime">${fmt(CH4_m3,1)}</div><div class="kpi-unit">m³/day</div></div>
+      <div class="kpi"><div class="kpi-lbl">Biogas Total</div><div class="kpi-num k-teal">${fmt(biogas_total,1)}</div><div class="kpi-unit">m³/day</div></div>
+      <div class="kpi"><div class="kpi-lbl">COD Removal</div><div class="kpi-num ${eta>70?'k-lime':eta>50?'k-amber':'k-red'}">${fmt(eta,1)}</div><div class="kpi-unit">%</div></div>
+      <div class="kpi"><div class="kpi-lbl">S_out</div><div class="kpi-num k-blue">${fmt(S_ss,3)}</div><div class="kpi-unit">kg COD/m³</div></div>
+      <div class="kpi"><div class="kpi-lbl">Biomass X_ss</div><div class="kpi-num k-green">${fmt(X_ss,3)}</div><div class="kpi-unit">kg/m³</div></div>
+      <div class="kpi"><div class="kpi-lbl">HRT</div><div class="kpi-num k-amber">${fmt(HRT,1)}</div><div class="kpi-unit">days</div></div>
+      <div class="kpi"><div class="kpi-lbl">μ_eff</div><div class="kpi-num k-lime">${fmt(mu_max_corr*S_ss/(Ks+S_ss),4)}</div><div class="kpi-unit">d⁻¹</div></div>
+      <div class="kpi"><div class="kpi-lbl">Gas Yield</div><div class="kpi-num k-teal">${fmt(SGY,3)}</div><div class="kpi-unit">m³/kgCOD</div></div>
+      <div class="kpi"><div class="kpi-lbl">f_pH</div><div class="kpi-num ${f_pH===1?'k-lime':'k-red'}">${f_pH.toFixed(1)}</div><div class="kpi-unit">factor</div></div>
+      <div class="kpi"><div class="kpi-lbl">f_NH3</div><div class="kpi-num k-blue">${fmt(f_NH3,3)}</div><div class="kpi-unit">factor</div></div>
+    </div>`;
+
+  // ── BIOGAS COMPOSITION ────────────────────────────────
+  document.getElementById('biogasBody').innerHTML = `
+    <div class="biogas-vis">
+      <div class="bv-label">Volumetric Composition</div>
+      <div class="biogas-bar">
+        <div class="bg-seg" style="width:${CH4_pct}%;background:#a8e63d;color:#0a0f07;">CH₄ ${CH4_pct}%</div>
+        <div class="bg-seg" style="width:${CO2_pct}%;background:#60a5fa;color:#0a0f07;">CO₂ ${CO2_pct}%</div>
+        <div class="bg-seg" style="width:${other_pct}%;background:#6a8050;color:#dff0c8;">O ${other_pct}%</div>
+      </div>
+      <div class="biogas-legend">
+        <div class="bl-item"><div class="bl-dot" style="background:#a8e63d;"></div>Methane CH₄ — ${fmt(CH4_m3,2)} m³/day</div>
+        <div class="bl-item"><div class="bl-dot" style="background:#60a5fa;"></div>Carbon Dioxide CO₂ — ${fmt(CO2_m3,2)} m³/day</div>
+        <div class="bl-item"><div class="bl-dot" style="background:#6a8050;"></div>Trace gases — N₂, H₂S, H₂O</div>
+      </div>
+    </div>`;
+
+  // ── TIME-SERIES SIMULATION ────────────────────────────
+  const dt = 0.5; // days
+  const t_max = Math.max(60, HRT * 4);
+  const times=[], Xs=[], Ss=[], CH4s=[], etas=[];
+  let X = X0, S = Sin;
+
+  for (let t = 0; t <= t_max; t += dt) {
+    const mu = mu_max * Math.pow(theta, T-35) * f_pH * f_NH3 * S / (Ks + S);
+    const dX = (mu - kd) * X * dt;
+    const dS_rxn = -(1/Y) * mu * X * dt;
+    const dS_flow = (Q * (Sin - S) / V) * dt; // CSTR dilution
+    X = Math.max(0.001, X + dX - (Q/V)*X*dt);
+    S = Math.max(0.001, Math.min(Sin, S + dS_rxn + dS_flow));
+    const ch4_t = 0.35 * (Sin - S) * Q;
+    const eta_t = ((Sin - S) / Sin) * 100;
+    times.push(+t.toFixed(1));
+    Xs.push(+X.toFixed(4));
+    Ss.push(+S.toFixed(4));
+    CH4s.push(+ch4_t.toFixed(3));
+    etas.push(+eta_t.toFixed(2));
+  }
+
+  // HRT sweep for efficiency chart
+  const hrtArr=[], etaHRT=[], ch4HRT=[];
+  for (let h = 2; h <= 40; h += 1) {
+    const s_term = Ks / (mu_max_corr / (1/h + kd) - 1);
+    const s_h = isNaN(s_term)||s_term<0||s_term>Sin ? Sin : Math.max(0.001,s_term);
+    hrtArr.push(h);
+    etaHRT.push(+((Sin-s_h)/Sin*100).toFixed(2));
+    ch4HRT.push(+(0.35*(Sin-s_h)*(V/h)).toFixed(2));
+  }
+
+  // Temperature sweep
+  const tempArr=[], ch4Temp=[];
+  for (let tt=15; tt<=60; tt+=1){
+    const mc = mu_max * Math.pow(theta, tt-35) * f_pH * f_NH3;
+    const sd = Ks/(mc/(1/HRT+kd)-1);
+    const s_t = isNaN(sd)||sd<0||sd>Sin ? Sin : Math.max(0.001,sd);
+    tempArr.push(tt);
+    ch4Temp.push(+(0.35*(Sin-s_t)*Q).toFixed(2));
+  }
+
+  // CHARTS
+  document.getElementById('chartsBody').innerHTML = `
+    <div class="charts-wrap">
+      <div class="chart-box"><div class="chart-lbl">Graph 1 — Substrate S vs Time</div><canvas id="g1"></canvas></div>
+      <div class="chart-box"><div class="chart-lbl">Graph 2 — Biomass X vs Time</div><canvas id="g2"></canvas></div>
+      <div class="chart-box"><div class="chart-lbl">Graph 3 — Methane Production vs Time</div><canvas id="g3"></canvas></div>
+      <div class="chart-box"><div class="chart-lbl">Graph 4 — Efficiency vs HRT</div><canvas id="g4"></canvas></div>
+      <div class="chart-box"><div class="chart-lbl">Graph 5 — Methane Yield vs Temperature</div><canvas id="g5"></canvas></div>
+    </div>`;
+
+  Object.values(charts).forEach(c => c.destroy());
+
+  const baseOpts = {
+    responsive: true, maintainAspectRatio: true,
+    animation: { duration: 600, easing: 'easeInOutQuart' },
+    plugins: {
+      legend: { labels: { color: '#6a8050', font: { family: 'DM Mono', size: 9 }, boxWidth: 10, padding: 8 } }
+    },
+    scales: {
+      x: { ticks: { color: '#6a8050', font:{ family:'DM Mono',size:8 }, maxTicksLimit: 7 }, grid: { color: 'rgba(42,56,32,0.5)' } },
+      y: { ticks: { color: '#6a8050', font:{ family:'DM Mono',size:8 } }, grid: { color: 'rgba(42,56,32,0.5)' } }
+    }
+  };
+
+  // sparse labels
+  const skip = Math.max(1, Math.floor(times.length / 30));
+  const tLabels = times.filter((_,i)=>i%skip===0);
+  const sS = Ss.filter((_,i)=>i%skip===0);
+  const xS = Xs.filter((_,i)=>i%skip===0);
+  const cS = CH4s.filter((_,i)=>i%skip===0);
+
+  charts.g1 = new Chart(document.getElementById('g1'), {
+    type:'line',
+    data:{ labels:tLabels, datasets:[
+      {label:'S (kg/m³)',data:sS,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2,pointRadius:0,fill:true,tension:0.4}
+    ]},
+    options:{...baseOpts,scales:{...baseOpts.scales,x:{...baseOpts.scales.x,title:{display:true,text:'Time (days)',color:'#6a8050',font:{size:8,family:'DM Mono'}}},y:{...baseOpts.scales.y,title:{display:true,text:'S (kg/m³)',color:'#6a8050',font:{size:8,family:'DM Mono'}}}}}
+  });
+  charts.g2 = new Chart(document.getElementById('g2'), {
+    type:'line',
+    data:{ labels:tLabels, datasets:[
+      {label:'X (kg/m³)',data:xS,borderColor:'#4caf7d',backgroundColor:'rgba(76,175,125,0.08)',borderWidth:2,pointRadius:0,fill:true,tension:0.4}
+    ]},
+    options:{...baseOpts,scales:{...baseOpts.scales,x:{...baseOpts.scales.x,title:{display:true,text:'Time (days)',color:'#6a8050',font:{size:8,family:'DM Mono'}}},y:{...baseOpts.scales.y,title:{display:true,text:'X (kg/m³)',color:'#6a8050',font:{size:8,family:'DM Mono'}}}}}
+  });
+  charts.g3 = new Chart(document.getElementById('g3'), {
+    type:'line',
+    data:{ labels:tLabels, datasets:[
+      {label:'CH₄ (m³/day)',data:cS,borderColor:'#a8e63d',backgroundColor:'rgba(168,230,61,0.1)',borderWidth:2.5,pointRadius:0,fill:true,tension:0.4}
+    ]},
+    options:{...baseOpts,scales:{...baseOpts.scales,x:{...baseOpts.scales.x,title:{display:true,text:'Time (days)',color:'#6a8050',font:{size:8,family:'DM Mono'}}},y:{...baseOpts.scales.y,title:{display:true,text:'CH₄ (m³/day)',color:'#6a8050',font:{size:8,family:'DM Mono'}}}}}
+  });
+  charts.g4 = new Chart(document.getElementById('g4'), {
+    type:'line',
+    data:{ labels:hrtArr, datasets:[
+      {label:'COD Removal %',data:etaHRT,borderColor:'#a8e63d',backgroundColor:'rgba(168,230,61,0.08)',borderWidth:2,pointRadius:0,fill:true,tension:0.4,yAxisID:'y'},
+      {label:'CH₄ m³/day',data:ch4HRT,borderColor:'#2dd4bf',backgroundColor:'rgba(45,212,191,0.05)',borderWidth:2,pointRadius:0,tension:0.4,yAxisID:'y1'}
+    ]},
+    options:{...baseOpts,scales:{...baseOpts.scales,x:{...baseOpts.scales.x,title:{display:true,text:'HRT (days)',color:'#6a8050',font:{size:8,family:'DM Mono'}}},y:{...baseOpts.scales.y,title:{display:true,text:'η (%)',color:'#6a8050',font:{size:8,family:'DM Mono'}}},y1:{type:'linear',position:'right',ticks:{color:'#2dd4bf',font:{family:'DM Mono',size:8}},grid:{drawOnChartArea:false},title:{display:true,text:'CH₄ m³/d',color:'#2dd4bf',font:{size:8,family:'DM Mono'}}}}}
+  });
+  charts.g5 = new Chart(document.getElementById('g5'), {
+    type:'line',
+    data:{ labels:tempArr, datasets:[
+      {label:'CH₄ (m³/day)',data:ch4Temp,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.1)',borderWidth:2.5,pointRadius:0,fill:true,tension:0.4}
+    ]},
+    options:{...baseOpts,scales:{...baseOpts.scales,x:{...baseOpts.scales.x,title:{display:true,text:'Temperature (°C)',color:'#6a8050',font:{size:8,family:'DM Mono'}}},y:{...baseOpts.scales.y,title:{display:true,text:'CH₄ (m³/day)',color:'#6a8050',font:{size:8,family:'DM Mono'}}}}}
+  });
+}
+
+window.addEventListener('load', () => runSim());
+</script>
+</body>
+</html>
